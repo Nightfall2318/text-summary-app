@@ -1,0 +1,55 @@
+# Python virtual environments
+venv/
+*/venv/
+backend/venv/
+ENV/
+env/
+.env/
+
+# Node.js dependencies
+node_modules/
+*/node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build outputs
+/build
+/dist
+*/dist
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Local development settings
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package files
+*.egg-info/
+*.egg
+
+# Log files
+*.log
+
+# Media files that might be large
+uploads/
+media/

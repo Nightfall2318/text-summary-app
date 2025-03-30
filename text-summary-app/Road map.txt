@@ -1,0 +1,7 @@
+1 - File upload feature - DONE 
+2 - API connection feature -todo 
+3 - Python script to read text
+4 - Python script to summarise text 
+5 - take photo option on mobile 
+6 - analyse photo for text 
+7 - summarise text on photo 
