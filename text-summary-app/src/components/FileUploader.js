@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import "../styles/FileUploader.css";
+import "../styles/DragDropZone.css";
+import DragDropZone from "./DragDropZone";
 
 // Define valid status values using constants/object
 const UploadStatus = {
@@ -164,6 +166,33 @@ export default function FileUploader() {
 
     return { valid: true };
   }, []);
+
+  // This is the new handler for files from DragDropZone
+  const handleFilesFromDragDrop = (validFiles, newErrors) => {
+    // Add any errors to our error state
+    if (newErrors && newErrors.length > 0) {
+      setErrors(prev => [...prev, ...newErrors]);
+    }
+    
+    // Process the valid files
+    if (validFiles && validFiles.length > 0) {
+      // Reset states since we have new files
+      setStatus(UploadStatus.IDLE);
+      setUploadProgress({});
+      setOverallProgress(0);
+      setUploadResults([]);
+      setExtractedText("");
+      setFileMetadata(null);
+      setSummary("");
+      setSummaryTaskId(null);
+      setFileId(null);
+      setSummaryStatus(SummarizationStatus.IDLE);
+      setSummaryProgress(0);
+      
+      // Set the files
+      setFiles(validFiles);
+    }
+  };
 
   const handleFileChange = useCallback((e) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -453,6 +482,10 @@ export default function FileUploader() {
   
   return (
     <div className="file-uploader-container">
+      {/* New Drag & Drop Zone */}
+      <DragDropZone onFilesSelected={handleFilesFromDragDrop} />
+      
+      {/* Classic file input as backup */}
       <input 
         type="file" 
         onChange={handleFileChange}
@@ -595,6 +628,7 @@ export default function FileUploader() {
           </div>
         </div>
       )}
+    
     </div>
   );
 }
