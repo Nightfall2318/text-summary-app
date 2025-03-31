@@ -44,8 +44,7 @@ def upload_file():
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
     
-    file = request.files['file']
-    
+    file = request.files['file']    
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
     
