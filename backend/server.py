@@ -9,6 +9,10 @@ from transformers import pipeline
 import uuid
 import threading
 import time
+import sys
+
+# Import the metadata extraction module
+from metadata_extractor import extract_metadata
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -25,7 +29,14 @@ extracted_texts = {}
 
 # Initialize the summarization pipeline
 # Note: This will download the model on first run which may take some time
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+try:
+    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+    print("Summarization model loaded successfully!")
+except Exception as e:
+    print(f"Error loading summarization model: {e}")
+    print("Please make sure transformers and torch are installed:")
+    print("pip install transformers torch")
+    summarizer = None
 
 # File upload endpoint
 @app.route("/upload", methods=["POST"])
@@ -42,6 +53,9 @@ def upload_file():
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
     
+    # Extract file metadata
+    file_metadata = extract_metadata(file_path)
+    
     # Extract text from the file
     extracted_text = extract_text(file_path)
     
@@ -49,35 +63,46 @@ def upload_file():
     file_id = str(uuid.uuid4())
     extracted_texts[file_id] = extracted_text
     
-    # Create a task ID for tracking progress
-    task_id = str(uuid.uuid4())
-    summarization_progress[task_id] = {
-        "progress": 0,
-        "status": "processing",
-        "result": None,
-        "error": None
-    }
-    
-    # Start summarization in a background thread
-    thread = threading.Thread(
-        target=process_summary_task,
-        args=(task_id, extracted_text)
-    )
-    thread.daemon = True
-    thread.start()
-    
-    return jsonify({
+    response_data = {
         "message": "File processed successfully",
         "filename": file.filename,
         "path": file_path,
         "extracted_text": extracted_text,
-        "task_id": task_id,
+        "metadata": file_metadata,
         "file_id": file_id
-    })
+    }
+    
+    # Only attempt summarization if the model is loaded successfully
+    if summarizer is not None:
+        # Create a task ID for tracking progress
+        task_id = str(uuid.uuid4())
+        summarization_progress[task_id] = {
+            "progress": 0,
+            "status": "processing",
+            "result": None,
+            "error": None
+        }
+        
+        # Start summarization in a background thread
+        thread = threading.Thread(
+            target=process_summary_task,
+            args=(task_id, extracted_text)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        response_data["task_id"] = task_id
+    else:
+        response_data["error"] = "Summarization model not available"
+    
+    return jsonify(response_data)
 
 # Regenerate summary endpoint
 @app.route("/regenerate", methods=["POST"])
 def regenerate_summary():
+    if summarizer is None:
+        return jsonify({"error": "Summarization model not available"}), 500
+        
     data = request.json
     if not data or "file_id" not in data:
         return jsonify({"error": "Missing file_id parameter"}), 400
@@ -141,6 +166,11 @@ def check_progress(task_id):
     return jsonify(response)
 
 def process_summary_task(task_id, text, max_length=150, min_length=40):
+    if summarizer is None:
+        summarization_progress[task_id]["error"] = "Summarization model not available"
+        summarization_progress[task_id]["status"] = "error"
+        return
+        
     try:
         summary = summarize_text(text, task_id, max_length, min_length)
         summarization_progress[task_id]["result"] = summary
@@ -333,4 +363,14 @@ def start_cleanup_thread():
 start_cleanup_thread()
 
 if __name__ == "__main__":
+    # Check if transformers is available
+    if summarizer is None:
+        print("Warning: Summarization model not available. Summarization functionality will be disabled.")
+        print("Make sure to install the required libraries:")
+        print("pip install transformers torch")
+    
+    # Print instructions for installing dependencies
+    print("To use metadata extraction, please install the following dependencies:")
+    print("pip install python-magic python-dateutil chardet python-docx pillow pymupdf pytesseract")
+    
     app.run(debug=True)

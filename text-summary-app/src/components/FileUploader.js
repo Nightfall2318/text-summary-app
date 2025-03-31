@@ -32,12 +32,14 @@ export default function FileUploader() {
   const [overallProgress, setOverallProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState([]);
   const [extractedText, setExtractedText] = useState("");
+  const [fileMetadata, setFileMetadata] = useState(null);
   const [summary, setSummary] = useState("");
   const [summaryTaskId, setSummaryTaskId] = useState(null);
   const [fileId, setFileId] = useState(null);
   const [summaryStatus, setSummaryStatus] = useState(SummarizationStatus.IDLE);
   const [summaryProgress, setSummaryProgress] = useState(0);
   const [summaryLength, setSummaryLength] = useState(150); // Default max length
+  const [showMetadata, setShowMetadata] = useState(true);
   const abortControllerRef = useRef(null);
   const pollIntervalRef = useRef(null);
   
@@ -74,7 +76,7 @@ export default function FileUploader() {
   }, [summaryTaskId, summaryStatus]);
 
   // Check the progress of the summarization task
-  const checkSummaryProgress = async () => {
+  const checkSummaryProgress = useCallback(async () => {
     try {
       const response = await axios.get(`http://localhost:5000/progress/${summaryTaskId}`);
       const { progress, status, result, error } = response.data;
@@ -99,7 +101,7 @@ export default function FileUploader() {
         setErrors(prev => [...prev, "Summarization task not found"]);
       }
     }
-  };
+  }, [summaryTaskId]);
 
   // Handle regenerating the summary
   const handleRegenerateSummary = async () => {
@@ -136,6 +138,11 @@ export default function FileUploader() {
     setSummaryLength(parseInt(e.target.value, 10));
   };
 
+  // Toggle metadata display
+  const toggleMetadataDisplay = () => {
+    setShowMetadata(!showMetadata);
+  };
+
   // Validate file size and type
   const validateFile = useCallback((file) => {
     // Size validation
@@ -170,6 +177,7 @@ export default function FileUploader() {
     setErrors([]);
     setUploadResults([]);
     setExtractedText("");
+    setFileMetadata(null);
     setSummary("");
     setSummaryTaskId(null);
     setFileId(null);
@@ -254,6 +262,11 @@ export default function FileUploader() {
         setExtractedText(response.data.extracted_text);
       }
       
+      // Store file metadata
+      if (response.data.metadata) {
+        setFileMetadata(response.data.metadata);
+      }
+      
       // Store task ID for summarization progress tracking
       if (response.data.task_id) {
         setSummaryTaskId(response.data.task_id);
@@ -304,6 +317,7 @@ export default function FileUploader() {
     setErrors([]);
     setUploadResults([]);
     setExtractedText("");
+    setFileMetadata(null);
     setSummary("");
     setSummaryTaskId(null);
     setFileId(null);
@@ -357,6 +371,82 @@ export default function FileUploader() {
         >
           {displayProgress}
         </div>
+      </div>
+    );
+  };
+
+  // Render metadata in a user-friendly way
+  const renderMetadata = (metadata) => {
+    if (!metadata) return null;
+
+    // Function to determine if a value should be excluded from display
+    const shouldExclude = (key, value) => {
+      // Exclude nested objects (like exif data) and error messages
+      return (
+        typeof value === 'object' ||
+        key.includes('error') ||
+        key === 'file_path' // Hide file path for security reasons
+      );
+    };
+
+    // Group metadata into categories
+    const basicInfo = {};
+    const documentInfo = {};
+    const mediaInfo = {};
+    const technicalInfo = {};
+
+    // Sort keys and group them
+    Object.keys(metadata).sort().forEach(key => {
+      const value = metadata[key];
+      
+      if (shouldExclude(key, value)) return;
+      
+      // Basic info category
+      if (['filename', 'extension', 'type', 'size_formatted', 'created_time', 'modified_time'].includes(key)) {
+        basicInfo[key] = value;
+      }
+      // Document info category
+      else if (['title', 'author', 'subject', 'creation_date', 'modification_date', 'word_count', 'line_count', 'paragraph_count'].includes(key)) {
+        documentInfo[key] = value;
+      }
+      // Media info category
+      else if (['width', 'height', 'resolution', 'camera_make', 'camera_model', 'exposure_time', 'f_number', 'iso_speed'].includes(key)) {
+        mediaInfo[key] = value;
+      }
+      // Everything else goes to technical info
+      else {
+        technicalInfo[key] = value;
+      }
+    });
+
+    // Format a metadata group
+    const formatMetadataGroup = (group, title) => {
+      const keys = Object.keys(group);
+      if (keys.length === 0) return null;
+      
+      return (
+        <div className="metadata-group">
+          <h4>{title}</h4>
+          <table className="metadata-table">
+            <tbody>
+              {keys.map(key => (
+                <tr key={key}>
+                  <td className="metadata-key">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                  <td className="metadata-value">{group[key]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+
+    return (
+      <div className="file-metadata">
+        {formatMetadataGroup(basicInfo, "Basic Information")}
+        {formatMetadataGroup(documentInfo, "Document Information")}
+        {formatMetadataGroup(mediaInfo, "Media Information")}
+        {formatMetadataGroup(technicalInfo, "Technical Information")}
       </div>
     );
   };
@@ -439,6 +529,21 @@ export default function FileUploader() {
               </ul>
             </div>
           )}
+        </div>
+      )}
+      
+      {fileMetadata && (
+        <div className="metadata-container">
+          <div className="metadata-header">
+            <h3>File Metadata</h3>
+            <button 
+              className="toggle-button"
+              onClick={toggleMetadataDisplay}
+            >
+              {showMetadata ? 'Hide Metadata' : 'Show Metadata'}
+            </button>
+          </div>
+          {showMetadata && renderMetadata(fileMetadata)}
         </div>
       )}
       
