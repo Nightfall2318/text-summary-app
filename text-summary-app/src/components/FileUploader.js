@@ -667,14 +667,6 @@ export default function FileUploader() {
       {/* Drag & Drop Zone */}
       <DragDropZone onFilesSelected={handleFilesFromDragDrop} />
       
-      {/* Classic file input as backup */}
-      <input 
-        type="file" 
-        onChange={handleFileChange}
-        multiple
-        className="file-input"
-      />
-      
       {/* Error display */}
       {errors.length > 0 && (
         <div className="error-container">
