@@ -1,69 +1,59 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import { FileUploaderProvider, useFileUploader, ACTIONS, UploadStatus, SummarizationStatus } from "./FileUploaderContext";
+import DragDropZone from "./DragDropZone";
 import "../styles/FileUploader.css";
 import "../styles/DragDropZone.css";
-import DragDropZone from "./DragDropZone";
-
-// Define valid status values using constants/object
-const UploadStatus = {
-  IDLE: 'idle',
-  UPLOADING: 'uploading',
-  PAUSED: 'paused',
-  SUCCESS: 'success',
-  ERROR: 'error'
-};
-
-const SummarizationStatus = {
-  IDLE: 'idle',
-  PROCESSING: 'processing',
-  COMPLETED: 'completed',
-  ERROR: 'error'
-};
 
 // Configuration options
-const MAX_FILE_SIZE_MB = 10; // Maximum file size in MB
-const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']; // Add or remove file types as needed
-const API_ENDPOINT = "http://localhost:5000/upload";  // Updated to point to your Flask backend
+const API_ENDPOINT = "http://localhost:5000/upload";
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000; // ms
 
-export default function FileUploader() {
-  const [files, setFiles] = useState([]);
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [status, setStatus] = useState(UploadStatus.IDLE);
-  const [uploadProgress, setUploadProgress] = useState({});
-  const [errors, setErrors] = useState([]);
-  const [overallProgress, setOverallProgress] = useState(0);
-  const [uploadResults, setUploadResults] = useState([]);
-  const [extractedText, setExtractedText] = useState("");
-  const [fileMetadata, setFileMetadata] = useState(null);
-  const [summary, setSummary] = useState("");
-  const [summaryTaskId, setSummaryTaskId] = useState(null);
-  const [fileId, setFileId] = useState(null);
-  const [summaryStatus, setSummaryStatus] = useState(SummarizationStatus.IDLE);
-  const [summaryProgress, setSummaryProgress] = useState(0);
-  const [summaryLength, setSummaryLength] = useState(150); // Default max length
-  const [showMetadata, setShowMetadata] = useState(true);
-  const [pausedFiles, setPausedFiles] = useState({});
+// FileUploaderContent - the main component that uses the context
+const FileUploaderContent = () => {
+  const { state, dispatch } = useFileUploader();
+  const {
+    files,
+    selectedFiles,
+    status,
+    uploadProgress,
+    pausedFiles,
+    errors,
+    overallProgress,
+    uploadResults,
+    extractedText,
+    fileMetadata,
+    summary,
+    summaryTaskId,
+    fileId,
+    summaryStatus,
+    summaryProgress,
+    summaryLength,
+    showMetadata
+  } = state;
+  
   const abortControllerRef = useRef({});
   const pollIntervalRef = useRef(null);
   
   // Clear errors after 5 seconds
   useEffect(() => {
-    if (errors.length > 0) {
+    if (errors && errors.length > 0) {
       const timer = setTimeout(() => {
-        setErrors([]);
+        dispatch({ type: ACTIONS.CLEAR_ERRORS });
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [errors]);
+  }, [errors, dispatch]);
 
   // Calculate overall progress whenever uploadProgress changes
   useEffect(() => {
-    if (files.length === 0) return;
+    if (!files || files.length === 0) return;
     
     // Only count active files (not paused) in progress calculation
     const activeFiles = files.filter(file => 
+      file &&
+      file.name && 
       !pausedFiles[file.name] && 
       uploadProgress[file.name] !== undefined
     );
@@ -75,66 +65,101 @@ export default function FileUploader() {
     }, 0);
     
     const calculatedOverallProgress = Math.round(totalProgress / activeFiles.length);
-    setOverallProgress(calculatedOverallProgress);
+    dispatch({ type: ACTIONS.SET_OVERALL_PROGRESS, payload: calculatedOverallProgress });
     
     // If all files are at 100%, consider it a success
     const allCompleted = files.every(file => 
+      !file ||
+      !file.name ||
       uploadProgress[file.name] === 100 || 
       uploadProgress[file.name] === undefined
     );
     
     if (allCompleted && calculatedOverallProgress === 100) {
-      setStatus(UploadStatus.SUCCESS);
+      dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.SUCCESS });
     }
-  }, [uploadProgress, files, pausedFiles]);
+  }, [uploadProgress, files, pausedFiles, dispatch]);
 
   // Poll for summarization progress
   useEffect(() => {
     if (summaryTaskId && summaryStatus === SummarizationStatus.PROCESSING) {
       pollIntervalRef.current = setInterval(checkSummaryProgress, 1000);
-      return () => clearInterval(pollIntervalRef.current);
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
     }
   }, [summaryTaskId, summaryStatus]);
 
+  const onFilesSelected = (files, errors) => {
+    if (errors && errors.length > 0) {
+      errors.forEach(error => {
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: error });
+      });
+    }
+    
+    if (files && files.length > 0) {
+      dispatch({ type: ACTIONS.SET_FILES, payload: files });
+    }
+  };
+
   // Check the progress of the summarization task
   const checkSummaryProgress = useCallback(async () => {
+    if (!summaryTaskId) return;
+    
     try {
+      console.log("Checking summary progress for task:", summaryTaskId);
       const response = await axios.get(`http://localhost:5000/progress/${summaryTaskId}`);
+      console.log("Progress response:", response.data);
+      
       const { progress, status, result, error } = response.data;
       
-      setSummaryProgress(progress);
+      dispatch({ type: ACTIONS.SET_SUMMARY_PROGRESS, payload: progress });
       
       if (status === 'completed') {
-        setSummaryStatus(SummarizationStatus.COMPLETED);
-        setSummary(result);
-        clearInterval(pollIntervalRef.current);
+        dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.COMPLETED });
+        dispatch({ type: ACTIONS.SET_SUMMARY, payload: result });
+        
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
       } else if (status === 'error') {
-        setSummaryStatus(SummarizationStatus.ERROR);
-        setErrors(prev => [...prev, `Summarization error: ${error}`]);
-        clearInterval(pollIntervalRef.current);
+        dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.ERROR });
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: `Summarization error: ${error}` });
+        
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
       }
     } catch (error) {
       console.error("Error checking summary progress:", error);
       if (error.response && error.response.status === 404) {
         // Task not found, stop polling
-        clearInterval(pollIntervalRef.current);
-        setSummaryStatus(SummarizationStatus.ERROR);
-        setErrors(prev => [...prev, "Summarization task not found"]);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        
+        dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.ERROR });
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: "Summarization task not found" });
       }
     }
-  }, [summaryTaskId]);
+  }, [summaryTaskId, dispatch]);
 
   // Handle regenerating the summary
   const handleRegenerateSummary = async () => {
     if (!fileId) {
-      setErrors(prev => [...prev, "No file available for regeneration"]);
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: "No file available for regeneration" });
       return;
     }
     
     try {
-      setSummaryStatus(SummarizationStatus.PROCESSING);
-      setSummaryProgress(0);
-      setSummary("");
+      dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.PROCESSING });
+      dispatch({ type: ACTIONS.SET_SUMMARY_PROGRESS, payload: 0 });
+      dispatch({ type: ACTIONS.SET_SUMMARY, payload: "" });
       
       const response = await axios.post("http://localhost:5000/regenerate", {
         file_id: fileId,
@@ -142,118 +167,33 @@ export default function FileUploader() {
         min_length: Math.max(20, Math.floor(summaryLength / 3)) // Minimum length is ~1/3 of max or at least 20
       });
       
-      setSummaryTaskId(response.data.task_id);
+      dispatch({ type: ACTIONS.SET_SUMMARY_TASK_ID, payload: response.data.task_id });
     } catch (error) {
       console.error("Error regenerating summary:", error);
-      setSummaryStatus(SummarizationStatus.ERROR);
+      dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.ERROR });
       if (error.response && error.response.data) {
-        setErrors(prev => [...prev, `Error regenerating summary: ${error.response.data.error || 'Unknown error'}`]);
+        dispatch({ 
+          type: ACTIONS.SET_ERRORS, 
+          payload: `Error regenerating summary: ${error.response.data.error || 'Unknown error'}`
+        });
       } else {
-        setErrors(prev => [...prev, "Error regenerating summary"]);
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: "Error regenerating summary" });
       }
     }
   };
 
   // Handle changing summary length
   const handleSummaryLengthChange = (e) => {
-    setSummaryLength(parseInt(e.target.value, 10));
+    dispatch({ 
+      type: ACTIONS.SET_SUMMARY_LENGTH, 
+      payload: parseInt(e.target.value, 10)
+    });
   };
 
   // Toggle metadata display
   const toggleMetadataDisplay = () => {
-    setShowMetadata(!showMetadata);
+    dispatch({ type: ACTIONS.TOGGLE_METADATA_DISPLAY });
   };
-
-  // Validate file size and type
-  const validateFile = useCallback((file) => {
-    // Size validation
-    const fileSizeInMB = file.size / (1024 * 1024);
-    if (fileSizeInMB > MAX_FILE_SIZE_MB) {
-      return {
-        valid: false,
-        error: `File ${file.name} exceeds maximum size of ${MAX_FILE_SIZE_MB}MB`
-      };
-    }
-
-    // Type validation (if ALLOWED_FILE_TYPES is not empty)
-    if (ALLOWED_FILE_TYPES.length > 0 && !ALLOWED_FILE_TYPES.includes(file.type)) {
-      return {
-        valid: false,
-        error: `File ${file.name} has unsupported type: ${file.type || 'unknown'}`
-      };
-    }
-
-    return { valid: true };
-  }, []);
-
-  // This is the new handler for files from DragDropZone
-  const handleFilesFromDragDrop = (validFiles, newErrors) => {
-    // Add any errors to our error state
-    if (newErrors && newErrors.length > 0) {
-      setErrors(prev => [...prev, ...newErrors]);
-    }
-    
-    // Process the valid files
-    if (validFiles && validFiles.length > 0) {
-      // Reset states since we have new files
-      setStatus(UploadStatus.IDLE);
-      setUploadProgress({});
-      setOverallProgress(0);
-      setUploadResults([]);
-      setExtractedText("");
-      setFileMetadata(null);
-      setSummary("");
-      setSummaryTaskId(null);
-      setFileId(null);
-      setSummaryStatus(SummarizationStatus.IDLE);
-      setSummaryProgress(0);
-      setPausedFiles({});
-      
-      // Set the files and select all of them by default
-      setFiles(validFiles);
-      setSelectedFiles(validFiles.map(file => file.name));
-    }
-  };
-
-  const handleFileChange = useCallback((e) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    
-    if (selectedFiles.length === 0) return;
-    
-    // Reset states
-    setStatus(UploadStatus.IDLE);
-    setUploadProgress({});
-    setOverallProgress(0);
-    setErrors([]);
-    setUploadResults([]);
-    setExtractedText("");
-    setFileMetadata(null);
-    setSummary("");
-    setSummaryTaskId(null);
-    setFileId(null);
-    setSummaryStatus(SummarizationStatus.IDLE);
-    setSummaryProgress(0);
-    setPausedFiles({});
-    
-    // Validate each file
-    const newErrors = [];
-    const validFiles = selectedFiles.filter(file => {
-      const validation = validateFile(file);
-      if (!validation.valid) {
-        newErrors.push(validation.error);
-        return false;
-      }
-      return true;
-    });
-
-    if (newErrors.length > 0) {
-      setErrors(newErrors);
-    }
-
-    // Set the files and select all of them by default
-    setFiles(validFiles);
-    setSelectedFiles(validFiles.map(file => file.name));
-  }, [validateFile]);
 
   const cancelUpload = useCallback(() => {
     // Abort all ongoing uploads
@@ -264,19 +204,26 @@ export default function FileUploader() {
     // Reset abort controllers
     abortControllerRef.current = {};
     
-    setStatus(UploadStatus.IDLE);
+    dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.IDLE });
     
     // Also clear any summary polling
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
-  }, []);
+  }, [dispatch]);
 
   // Upload a single file with retry capability
   const uploadFile = useCallback(async (file, retryCount = 0) => {
+    // Enhanced validation to prevent "Invalid file object" errors
+    if (!file || !file.name || !file.size || typeof file.size !== 'number') {
+      console.error("Invalid file object provided to uploadFile:", file);
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: "Invalid file object detected" });
+      return false;
+    }
+    
     // Skip if file is paused
-    if (pausedFiles[file.name]) {
+    if (pausedFiles && pausedFiles[file.name]) {
       console.log(`Skipping upload of ${file.name} as it's paused`);
       return "paused";
     }
@@ -285,70 +232,80 @@ export default function FileUploader() {
     formData.append('file', file);
     
     // Initialize progress for this file
-    setUploadProgress(prev => ({
-      ...prev,
-      [file.name]: 0
-    }));
+    dispatch({ 
+      type: ACTIONS.SET_UPLOAD_PROGRESS, 
+      payload: { fileName: file.name, progress: 0 } 
+    });
 
     // Create a new AbortController for this specific file
     abortControllerRef.current[file.name] = new AbortController();
 
     try {
+      console.log("Uploading file:", file.name);
       const response = await axios.post(API_ENDPOINT, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
         onUploadProgress: (progressEvent) => {
           // Skip progress updates if the file has been paused
-          if (pausedFiles[file.name]) return;
+          if (pausedFiles && pausedFiles[file.name]) return;
           
           const progress = progressEvent.total
             ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
             : 0;
           
-          setUploadProgress(prev => ({
-            ...prev,
-            [file.name]: progress
-          }));
+          dispatch({ 
+            type: ACTIONS.SET_UPLOAD_PROGRESS, 
+            payload: { fileName: file.name, progress }
+          });
         },
         signal: abortControllerRef.current[file.name]?.signal
       });
+      
+      console.log("Upload response:", response.data);
       
       // Clean up the abort controller
       delete abortControllerRef.current[file.name];
       
       // Ensure file shows 100% progress on completion
-      setUploadProgress(prev => ({
-        ...prev,
-        [file.name]: 100
-      }));
+      dispatch({ 
+        type: ACTIONS.SET_UPLOAD_PROGRESS, 
+        payload: { fileName: file.name, progress: 100 } 
+      });
       
       // Store the response data
-      setUploadResults(prev => [...prev, {
-        filename: file.name,
-        response: response.data
-      }]);
+      dispatch({ 
+        type: ACTIONS.SET_UPLOAD_RESULTS, 
+        payload: {
+          filename: file.name,
+          response: response.data
+        }
+      });
       
       // Store extracted text
       if (response.data.extracted_text) {
-        setExtractedText(response.data.extracted_text);
+        dispatch({ type: ACTIONS.SET_EXTRACTED_TEXT, payload: response.data.extracted_text });
       }
       
       // Store file metadata
       if (response.data.metadata) {
-        setFileMetadata(response.data.metadata);
+        dispatch({ type: ACTIONS.SET_FILE_METADATA, payload: response.data.metadata });
       }
       
       // Store task ID for summarization progress tracking
       if (response.data.task_id) {
-        setSummaryTaskId(response.data.task_id);
-        setSummaryStatus(SummarizationStatus.PROCESSING);
-        setSummaryProgress(0);
+        console.log("Received task ID:", response.data.task_id);
+        dispatch({ type: ACTIONS.SET_SUMMARY_TASK_ID, payload: response.data.task_id });
+        dispatch({ type: ACTIONS.SET_SUMMARY_STATUS, payload: SummarizationStatus.PROCESSING });
+        dispatch({ type: ACTIONS.SET_SUMMARY_PROGRESS, payload: 0 });
+        
+        // Start checking progress immediately
+        setTimeout(() => checkSummaryProgress(), 500);
       }
       
       // Store file ID for regeneration
       if (response.data.file_id) {
-        setFileId(response.data.file_id);
+        dispatch({ type: ACTIONS.SET_FILE_ID, payload: response.data.file_id });
       }
       
       return true;
@@ -358,7 +315,7 @@ export default function FileUploader() {
       
       // Don't retry if the upload was cancelled
       if (axios.isCancel(error)) {
-        setErrors(prev => [...prev, `Upload of ${file.name} was cancelled`]);
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: `Upload of ${file.name} was cancelled` });
         return false;
       }
       
@@ -366,39 +323,38 @@ export default function FileUploader() {
       
       // Retry logic
       if (retryCount < MAX_RETRIES) {
-        setErrors(prev => [...prev, `Upload of ${file.name} failed, retrying... (${retryCount + 1}/${MAX_RETRIES})`]);
+        dispatch({ type: ACTIONS.SET_ERRORS, payload: `Upload of ${file.name} failed, retrying... (${retryCount + 1}/${MAX_RETRIES})` });
         
         // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         return uploadFile(file, retryCount + 1);
       }
       
-      setErrors(prev => [...prev, `Failed to upload ${file.name} after ${MAX_RETRIES} attempts`]);
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: `Failed to upload ${file.name} after ${MAX_RETRIES} attempts` });
       
       // Mark this file as failed in the progress
-      setUploadProgress(prev => ({
-        ...prev,
-        [file.name]: -1 // Using -1 to indicate failure
-      }));
+      dispatch({ 
+        type: ACTIONS.SET_UPLOAD_PROGRESS, 
+        payload: { fileName: file.name, progress: -1 } 
+      });
       
       return false;
     }
-  }, [pausedFiles]);
+  }, [pausedFiles, dispatch, checkSummaryProgress]);
 
   const handleFileUpload = useCallback(async () => {
     // Filter files that are selected
-    const filesToUpload = files.filter(file => selectedFiles.includes(file.name));
+    const filesToUpload = files.filter(file => 
+      file && file.name && file.size && selectedFiles.includes(file.name)
+    );
     
     if (filesToUpload.length === 0) {
-      setErrors(prev => [...prev, "No files selected for upload"]);
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: "No files selected for upload" });
       return;
     }
     
-    setStatus(UploadStatus.UPLOADING);
-    setErrors([]);
-    
-    // Store the currently uploading files
-    const currentlyUploading = filesToUpload.map(file => file.name);
+    dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.UPLOADING });
+    dispatch({ type: ACTIONS.CLEAR_ERRORS });
     
     try {
       // Upload all selected files concurrently
@@ -416,19 +372,20 @@ export default function FileUploader() {
       
       // Set appropriate status
       if (anyPaused) {
-        setStatus(UploadStatus.PAUSED);
+        dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.PAUSED });
       } else {
-        setStatus(allSuccessful ? UploadStatus.SUCCESS : UploadStatus.ERROR);
+        dispatch({ type: ACTIONS.SET_STATUS, payload: allSuccessful ? UploadStatus.SUCCESS : UploadStatus.ERROR });
       }
     } catch (error) {
       console.error("Unexpected error during upload:", error);
-      setStatus(UploadStatus.ERROR);
-      setErrors(prev => [...prev, "An unexpected error occurred during upload"]);
+      dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.ERROR });
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: "An unexpected error occurred during upload" });
     }
-  }, [files, selectedFiles, uploadFile]);
+  }, [files, selectedFiles, uploadFile, dispatch]);
 
   // Format file size to human-readable format
   const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return 'Unknown size';
     if (bytes < 1024) return bytes + ' B';
     else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
     else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
@@ -436,11 +393,20 @@ export default function FileUploader() {
   };
 
   // Progress bar component using CSS classes
-  const ProgressBar = ({ progress, isPaused = false }) => {
-    // Handle failed uploads (progress = -1)
-    const progressBarClass = progress === -1 ? 'progress-bar-failed' : 
-                            isPaused ? 'progress-bar-paused' :
-                            progress === 100 ? 'progress-bar-success' : 'progress-bar-progress';
+  const ProgressBar = ({ progress, isPaused = false, type = "default" }) => {
+    // Determine the right class
+    let progressBarClass;
+    if (progress === -1) {
+      progressBarClass = 'progress-bar-failed';
+    } else if (isPaused) {
+      progressBarClass = 'progress-bar-paused';
+    } else if (type === "summary") {
+      progressBarClass = 'progress-bar-summary';
+    } else if (progress === 100) {
+      progressBarClass = 'progress-bar-success';
+    } else {
+      progressBarClass = 'progress-bar-progress';
+    }
     
     const displayProgress = progress === -1 ? 'Failed' : 
                             isPaused ? 'Paused' : `${progress}%`;
@@ -536,41 +502,42 @@ export default function FileUploader() {
   // Batch selection handlers
   const toggleFileSelection = (fileName) => {
     if (selectedFiles.includes(fileName)) {
-      setSelectedFiles(prev => prev.filter(name => name !== fileName));
+      dispatch({ type: ACTIONS.DESELECT_FILE, payload: fileName });
     } else {
-      setSelectedFiles(prev => [...prev, fileName]);
+      dispatch({ type: ACTIONS.SELECT_FILE, payload: fileName });
     }
   };
   
   const selectAllFiles = () => {
-    setSelectedFiles(files.map(file => file.name));
+    dispatch({ type: ACTIONS.SELECT_ALL_FILES });
   };
   
   const deselectAllFiles = () => {
-    setSelectedFiles([]);
+    dispatch({ type: ACTIONS.DESELECT_ALL_FILES });
   };
   
   // Pause/Resume handlers
   const togglePauseResume = (fileName) => {
-    if (pausedFiles[fileName]) {
+    if (pausedFiles && pausedFiles[fileName]) {
       // Resume the file
-      setPausedFiles(prev => {
-        const newPaused = {...prev};
-        delete newPaused[fileName];
-        return newPaused;
-      });
+      dispatch({ type: ACTIONS.RESUME_FILE, payload: fileName });
       
       // Check if we need to resume upload
       if (status === UploadStatus.PAUSED || status === UploadStatus.UPLOADING) {
-        // Re-upload this file
-        uploadFile({name: fileName});
+        // Find the original file object to re-upload
+        const fileToUpload = files.find(file => 
+          file && file.name === fileName && file.size && typeof file.size === 'number'
+        );
+        
+        if (fileToUpload) {
+          uploadFile(fileToUpload);
+        } else {
+          dispatch({ type: ACTIONS.SET_ERRORS, payload: `Unable to resume ${fileName}: file reference lost` });
+        }
       }
     } else {
       // Pause the file
-      setPausedFiles(prev => ({
-        ...prev,
-        [fileName]: true
-      }));
+      dispatch({ type: ACTIONS.PAUSE_FILE, payload: fileName });
       
       // Abort any ongoing upload for this file
       if (abortControllerRef.current[fileName]) {
@@ -579,11 +546,16 @@ export default function FileUploader() {
       }
       
       // If all files are now paused, update status
-      const stillUploading = Object.keys(uploadProgress)
-        .filter(name => uploadProgress[name] < 100 && !pausedFiles[name] && name !== fileName);
+      const stillUploading = files.filter(file => 
+        file && file.name && 
+        uploadProgress[file.name] !== undefined && 
+        uploadProgress[file.name] < 100 && 
+        (!pausedFiles || !pausedFiles[file.name]) && 
+        file.name !== fileName
+      );
       
       if (stillUploading.length === 0 && status === UploadStatus.UPLOADING) {
-        setStatus(UploadStatus.PAUSED);
+        dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.PAUSED });
       }
     }
   };
@@ -595,38 +567,36 @@ export default function FileUploader() {
       delete abortControllerRef.current[fileName];
     }
     
-    // Remove the file from states
-    setFiles(prev => prev.filter(file => file.name !== fileName));
-    setSelectedFiles(prev => prev.filter(name => name !== fileName));
-    setPausedFiles(prev => {
-      const newPaused = {...prev};
-      delete newPaused[fileName];
-      return newPaused;
-    });
-    setUploadProgress(prev => {
-      const newProgress = {...prev};
-      delete newProgress[fileName];
-      return newProgress;
-    });
+    // Remove the file
+    dispatch({ type: ACTIONS.REMOVE_FILE, payload: fileName });
   };
   
   const resumeAllUploads = () => {
     if (status !== UploadStatus.PAUSED) return;
     
     // List of files that were paused
-    const pausedFilesList = Object.keys(pausedFiles);
-    
-    // Clear paused files
-    setPausedFiles({});
+    const pausedFilesList = pausedFiles ? Object.keys(pausedFiles) : [];
+    if (pausedFilesList.length === 0) return;
     
     // Resume uploads
-    setStatus(UploadStatus.UPLOADING);
+    dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.UPLOADING });
     
     // Filter to only selected files that were paused
     const filesToResume = files.filter(file => 
+      file && file.name && file.size && typeof file.size === 'number' &&
       pausedFilesList.includes(file.name) && 
       selectedFiles.includes(file.name)
     );
+    
+    if (filesToResume.length === 0) {
+      dispatch({ type: ACTIONS.SET_ERRORS, payload: "No valid files to resume" });
+      return;
+    }
+    
+    // Clear paused files one by one
+    pausedFilesList.forEach(fileName => {
+      dispatch({ type: ACTIONS.RESUME_FILE, payload: fileName });
+    });
     
     // Start the uploads
     filesToResume.forEach(file => {
@@ -646,13 +616,10 @@ export default function FileUploader() {
       }
       
       // Mark file as paused
-      setPausedFiles(prev => ({
-        ...prev,
-        [fileName]: true
-      }));
+      dispatch({ type: ACTIONS.PAUSE_FILE, payload: fileName });
     });
     
-    setStatus(UploadStatus.PAUSED);
+    dispatch({ type: ACTIONS.SET_STATUS, payload: UploadStatus.PAUSED });
   };
   
   const removeSelectedFiles = () => {
@@ -665,7 +632,8 @@ export default function FileUploader() {
   return (
     <div className="file-uploader-container">
       {/* Drag & Drop Zone */}
-      <DragDropZone onFilesSelected={handleFilesFromDragDrop} />
+      
+      <DragDropZone onFilesSelected={onFilesSelected} />
       
       {/* Error display */}
       {errors.length > 0 && (
@@ -758,7 +726,7 @@ export default function FileUploader() {
                       }}
                       className="file-action-button"
                     >
-                      {pausedFiles[file.name] ? '▶️' : '⏸️'}
+                      {pausedFiles && pausedFiles[file.name] ? '▶️' : '⏸️'}
                     </button>
                   )}
                   {status !== UploadStatus.UPLOADING && (
@@ -778,7 +746,7 @@ export default function FileUploader() {
               {uploadProgress[file.name] !== undefined && (
                 <ProgressBar 
                   progress={uploadProgress[file.name]} 
-                  isPaused={pausedFiles[file.name]}
+                  isPaused={pausedFiles && pausedFiles[file.name]}
                 />
               )}
             </div>
@@ -856,20 +824,31 @@ export default function FileUploader() {
         </div>
       )}
       
-      {/* Summarization progress */}
-      {summaryStatus === SummarizationStatus.PROCESSING && (
-        <div className="summary-progress-container">
-          <h3>Generating Summary...</h3>
-          <ProgressBar progress={summaryProgress} />
-        </div>
-      )}
-      
       {/* Extracted text */}
       {extractedText && (
         <div className="extracted-text-container">
           <h3>Extracted Text:</h3>
           <div className="text-content">
-            {extractedText}
+            {extractedText.substring(0, 2000)}
+            {extractedText.length > 2000 && "... (text truncated for display)"}
+          </div>
+        </div>
+      )}
+      
+      {/* Summarization progress */}
+      {summaryStatus === SummarizationStatus.PROCESSING && (
+        <div className="summary-progress-container">
+          <h3>Generating Summary...</h3>
+          <ProgressBar progress={summaryProgress} type="summary" />
+        </div>
+      )}
+      
+      {/* Summary */}
+      {summary && (
+        <div className="summary-container">
+          <h3>Summary:</h3>
+          <div className="summary-text">
+            {summary}
           </div>
         </div>
       )}
@@ -898,17 +877,16 @@ export default function FileUploader() {
           </button>
         </div>
       )}
-      
-      {/* Summary */}
-      {summary && (
-        <div className="summary-container">
-          <h3>Summary:</h3>
-          <div className="summary-text">
-            {summary}
-          </div>
-        </div>
-      )}
-
+  
     </div>
+  );
+};
+
+// Main FileUploader component with context provider
+export default function FileUploader() {
+  return (
+    <FileUploaderProvider>
+      <FileUploaderContent />
+    </FileUploaderProvider>
   );
 }
