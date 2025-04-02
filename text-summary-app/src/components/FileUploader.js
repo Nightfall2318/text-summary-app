@@ -4,6 +4,7 @@ import { FileUploaderProvider, useFileUploader, ACTIONS, UploadStatus, Summariza
 import DragDropZone from "./DragDropZone";
 import "../styles/FileUploader.css";
 import "../styles/DragDropZone.css";
+import FileItem from './FileItem';
 
 // Configuration options
 const API_ENDPOINT = "http://localhost:5000/upload";
@@ -632,7 +633,7 @@ const FileUploaderContent = () => {
   return (
     <div className="file-uploader-container">
       {/* Drag & Drop Zone */}
-      
+
       <DragDropZone onFilesSelected={onFilesSelected} />
       
       {/* Error display */}
@@ -693,65 +694,28 @@ const FileUploaderContent = () => {
         </div>
       )}
       
-      {/* Files list */}
       {files.length > 0 && (
-        <div className="files-container">
-          <p className="files-heading">Files: {files.length}, Selected: {selectedFiles.length}</p>
-          {files.map(file => (
-            <div 
-              key={file.name} 
-              className={`file-item ${selectedFiles.includes(file.name) ? 'file-item-selected' : ''}`}
-              onClick={() => toggleFileSelection(file.name)}
-            >
-              <div className="file-item-header">
-                <div className="file-selection">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedFiles.includes(file.name)}
-                    onChange={() => toggleFileSelection(file.name)}
-                    onClick={e => e.stopPropagation()}
-                  />
-                </div>
-                <div className="file-details">
-                  <p className="file-name">{file.name}</p>
-                  <p className="file-info">Size: {formatFileSize(file.size)}</p>
-                  <p className="file-info">Type: {file.type || 'unknown'}</p>
-                </div>
-                <div className="file-actions">
-                  {status === UploadStatus.UPLOADING && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        togglePauseResume(file.name);
-                      }}
-                      className="file-action-button"
-                    >
-                      {pausedFiles && pausedFiles[file.name] ? '▶️' : '⏸️'}
-                    </button>
-                  )}
-                  {status !== UploadStatus.UPLOADING && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFile(file.name);
-                      }}
-                      className="file-action-button remove"
-                    >
-                      ❌
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              {uploadProgress[file.name] !== undefined && (
-                <ProgressBar 
-                  progress={uploadProgress[file.name]} 
-                  isPaused={pausedFiles && pausedFiles[file.name]}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="files-container">
+        <p className="files-heading">
+          Files: {files.length}
+          {selectedFiles.length > 0 && 
+            <span className="selected-count"> • {selectedFiles.length} selected</span>
+          }
+        </p>
+        {files.map(file => (
+          <FileItem
+            key={file.name}
+            file={file}
+            isSelected={selectedFiles.includes(file.name)}
+            isPaused={pausedFiles && pausedFiles[file.name]}
+            progress={uploadProgress[file.name]}
+            onSelect={toggleFileSelection}
+            onRemove={removeFile}
+            onTogglePause={togglePauseResume}
+            isUploading={status === UploadStatus.UPLOADING}
+          />
+        ))}
+      </div>
       )}
       
       {/* Upload progress */}

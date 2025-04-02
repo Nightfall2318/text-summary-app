@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import '../styles/FileUploader.css';
+import '../styles/DragDropZone.css';
 
 // Configuration options
 const MAX_FILE_SIZE_MB = 10; // Maximum file size in MB
@@ -121,31 +121,48 @@ const DragDropZone = ({ onFilesSelected }) => {
         ref={fileInputRef}
         onChange={handleChange}
         multiple
-        className="file-input hidden"
-        style={{ display: 'none' }} // Hide the input
+        className="file-input"
+        style={{ display: 'none' }} 
       />
       
       <div className="drag-drop-content">
         <div className="drag-drop-icon">
-          <svg width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 5V19M12 5L8 9M12 5L16 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M4 15V17C4 18.1046 4.89543 19 6 19H18C19.1046 19 20 18.1046 20 17V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#4a90e2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5V19M12 5L8 9M12 5L16 9" />
+            <path d="M4 15V17C4 18.1046 4.89543 19 6 19H18C19.1046 19 20 18.1046 20 17V15" />
           </svg>
         </div>
-        <h3>Drag & Drop files here</h3>
-        <p>or</p>
+        
+        <h3 className="drag-heading">Drop files here</h3>
+        
+        <div className="drag-drop-divider">
+          <span>or</span>
+        </div>
+        
         <button 
           onClick={onButtonClick}
           className="browse-button"
         >
           Browse Files
         </button>
-        <p className="file-types-hint">
-          Supported file types: PDF, DOCX, JPG, PNG, TXT
-        </p>
-        <p className="file-size-hint">
-          Maximum file size: {MAX_FILE_SIZE_MB}MB
-        </p>
+        
+        <div className="file-info-container">
+          <div className="file-info-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Supported formats: PDF, DOCX, JPG, PNG, TXT</span>
+          </div>
+          <div className="file-info-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>Maximum size: {MAX_FILE_SIZE_MB}MB per file</span>
+          </div>
+        </div>
       </div>
 
       {dragActive && (

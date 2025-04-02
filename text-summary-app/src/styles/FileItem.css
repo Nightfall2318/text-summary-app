@@ -1,0 +1,179 @@
+:root {
+    --primary-color: #4a90e2;
+    --primary-light: #e3f2fd;
+    --primary-dark: #2a5885;
+    --success-color: #43a047;
+    --warning-color: #ffa000;
+    --error-color: #e53935;
+    --gray-light: #f5f7fa;
+    --gray-medium: #e1e5eb;
+    --gray-dark: #8c9cb1;
+    --text-primary: #2d3748;
+    --text-secondary: #718096;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --border-radius: 8px;
+    --transition-speed: 0.2s;
+  }
+  
+  /* File Item */
+  .file-item {
+    position: relative;
+    border: 1px solid var(--gray-medium);
+    border-radius: var(--border-radius);
+    margin-bottom: 12px;
+    padding: 12px;
+    transition: all var(--transition-speed) ease;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  
+  .file-item:hover {
+    background-color: var(--gray-light);
+  }
+  
+  .file-item-selected {
+    background-color: var(--primary-light);
+    border-color: var(--primary-color);
+  }
+  
+  .file-item-complete {
+    border-color: var(--success-color);
+  }
+  
+  .file-item-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .file-item-checkbox {
+    display: flex;
+    align-items: center;
+  }
+  
+  .file-item-checkbox input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+  
+  .file-item-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    color: var(--text-secondary);
+  }
+  
+  .file-extension {
+    position: absolute;
+    bottom: 0;
+    font-size: 0.6rem;
+    font-weight: bold;
+    color: var(--text-secondary);
+  }
+  
+  .file-item-details {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .file-name-container {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  
+  .file-name {
+    font-weight: 500;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .file-size {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+  
+  .file-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .progress-bar-container {
+    flex: 1;
+    height: 6px;
+    background-color: var(--gray-medium);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  
+  .progress-bar {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.3s ease;
+  }
+  
+  .progress-text {
+    min-width: 60px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+  
+  .file-item-actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .file-action-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--gray-medium);
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+    color: var(--text-secondary);
+  }
+  
+  .file-action-button:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+  
+  .file-action-button.remove:hover {
+    border-color: var(--error-color);
+    color: var(--error-color);
+  }
+  
+  /* Responsive styles */
+  @media (max-width: 768px) {
+    .file-item-container {
+      flex-wrap: wrap;
+    }
+    
+    .file-item-icon {
+      margin-bottom: 8px;
+    }
+    
+    .file-item-details {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    
+    .file-item-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
