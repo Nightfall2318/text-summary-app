@@ -11,8 +11,6 @@ import threading
 import time
 import sys
 
-# Import the metadata extraction module
-from metadata_extractor import extract_metadata
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -52,9 +50,6 @@ def upload_file():
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
     
-    # Extract file metadata
-    file_metadata = extract_metadata(file_path)
-    
     # Extract text from the file
     extracted_text = extract_text(file_path)
     
@@ -67,7 +62,6 @@ def upload_file():
         "filename": file.filename,
         "path": file_path,
         "extracted_text": extracted_text,
-        "metadata": file_metadata,
         "file_id": file_id
     }
     
@@ -369,7 +363,6 @@ if __name__ == "__main__":
         print("pip install transformers torch")
     
     # Print instructions for installing dependencies
-    print("To use metadata extraction, please install the following dependencies:")
     print("pip install python-magic python-dateutil chardet python-docx pillow pymupdf pytesseract")
     
     app.run(debug=True)

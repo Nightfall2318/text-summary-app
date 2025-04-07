@@ -24,14 +24,12 @@ const FileUploaderContent = () => {
     overallProgress,
     uploadResults,
     extractedText,
-    fileMetadata,
     summary,
     summaryTaskId,
     fileId,
     summaryStatus,
     summaryProgress,
     summaryLength,
-    showMetadata
   } = state;
   
   const abortControllerRef = useRef({});
@@ -189,11 +187,6 @@ const FileUploaderContent = () => {
       type: ACTIONS.SET_SUMMARY_LENGTH, 
       payload: parseInt(e.target.value, 10)
     });
-  };
-
-  // Toggle metadata display
-  const toggleMetadataDisplay = () => {
-    dispatch({ type: ACTIONS.TOGGLE_METADATA_DISPLAY });
   };
 
   const cancelUpload = useCallback(() => {
@@ -420,82 +413,6 @@ const FileUploaderContent = () => {
         >
           {displayProgress}
         </div>
-      </div>
-    );
-  };
-
-  // Render metadata in a user-friendly way
-  const renderMetadata = (metadata) => {
-    if (!metadata) return null;
-
-    // Function to determine if a value should be excluded from display
-    const shouldExclude = (key, value) => {
-      // Exclude nested objects (like exif data) and error messages
-      return (
-        typeof value === 'object' ||
-        key.includes('error') ||
-        key === 'file_path' // Hide file path for security reasons
-      );
-    };
-
-    // Group metadata into categories
-    const basicInfo = {};
-    const documentInfo = {};
-    const mediaInfo = {};
-    const technicalInfo = {};
-
-    // Sort keys and group them
-    Object.keys(metadata).sort().forEach(key => {
-      const value = metadata[key];
-      
-      if (shouldExclude(key, value)) return;
-      
-      // Basic info category
-      if (['filename', 'extension', 'type', 'size_formatted', 'created_time', 'modified_time'].includes(key)) {
-        basicInfo[key] = value;
-      }
-      // Document info category
-      else if (['title', 'author', 'subject', 'creation_date', 'modification_date', 'word_count', 'line_count', 'paragraph_count'].includes(key)) {
-        documentInfo[key] = value;
-      }
-      // Media info category
-      else if (['width', 'height', 'resolution', 'camera_make', 'camera_model', 'exposure_time', 'f_number', 'iso_speed'].includes(key)) {
-        mediaInfo[key] = value;
-      }
-      // Everything else goes to technical info
-      else {
-        technicalInfo[key] = value;
-      }
-    });
-
-    // Format a metadata group
-    const formatMetadataGroup = (group, title) => {
-      const keys = Object.keys(group);
-      if (keys.length === 0) return null;
-      
-      return (
-        <div className="metadata-group">
-          <h4>{title}</h4>
-          <table className="metadata-table">
-            <tbody>
-              {keys.map(key => (
-                <tr key={key}>
-                  <td className="metadata-key">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                  <td className="metadata-value">{group[key]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    };
-
-    return (
-      <div className="file-metadata">
-        {formatMetadataGroup(basicInfo, "Basic Information")}
-        {formatMetadataGroup(documentInfo, "Document Information")}
-        {formatMetadataGroup(mediaInfo, "Media Information")}
-        {formatMetadataGroup(technicalInfo, "Technical Information")}
       </div>
     );
   };
@@ -769,22 +686,6 @@ const FileUploaderContent = () => {
               </ul>
             </div>
           )}
-        </div>
-      )}
-      
-      {/* File metadata */}
-      {fileMetadata && (
-        <div className="metadata-container">
-          <div className="metadata-header">
-            <h3>File Metadata</h3>
-            <button 
-              className="toggle-button"
-              onClick={toggleMetadataDisplay}
-            >
-              {showMetadata ? 'Hide Metadata' : 'Show Metadata'}
-            </button>
-          </div>
-          {showMetadata && renderMetadata(fileMetadata)}
         </div>
       )}
       
