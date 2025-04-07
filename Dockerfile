@@ -14,12 +14,9 @@ COPY --from=frontend-build /app/frontend/build /app/static/
 # Change working directory to be INSIDE the backend folder
 WORKDIR /app/backend
 
-# Install Python dependencies 
-# (Create this file in your backend folder if you haven't already)
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Make sure gunicorn is installed
-RUN pip install --no-cache-dir gunicorn
+# Install Python dependencies directly
+# Replace these with your actual dependencies
+RUN pip install --no-cache-dir flask flask-cors gunicorn python-dotenv
 
 # Set environment variables
 ENV PORT=8000
