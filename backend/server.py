@@ -11,8 +11,7 @@ import threading
 import time
 import sys
 
-
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="/")
 CORS(app)  # Enable CORS for all routes
 
 # Create uploads directory if it doesn't exist

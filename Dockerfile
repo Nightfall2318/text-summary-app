@@ -50,3 +50,9 @@ EXPOSE 8000
 
 # Use server:app since we're now inside the backend directory
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "server:app"]
+
+# Copy frontend build to the correct location for Flask static files
+COPY --from=frontend-build /app/frontend/build /app/backend/static/
+
+# Set static folder environment variable
+ENV STATIC_FOLDER="/app/backend/static"
