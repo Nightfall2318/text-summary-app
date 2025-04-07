@@ -24,4 +24,4 @@ ENV STATIC_DIR=/app/static
 EXPOSE 8000
 
 # Start command - replace with your actual app module and variable
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "backend.server:app"]
