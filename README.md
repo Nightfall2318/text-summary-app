@@ -1,14 +1,18 @@
-Text-Summary-App
+# Text-Summary-App
+
 This project is a full-stack application that extracts text from various document types (PDF, DOCX, images, text files) and generates concise summaries using AI. The app uses a Python Flask backend and React frontend.
-Live Application
+# Live Application
+
 You can access the live application here: [Text-Summary-App](https://text-summary-app-production.up.railway.app/)
 Project Structure
-CopyText-Summary-App/
+
+Text-Summary-App/
 ├── text-summary-app/  # React frontend
 ├── backend/          # Flask backend
 ├── .gitignore        # Git ignore file
 └── Dockerfile        # Docker configuration for deployment
-Prerequisites
+
+## Prerequisites
 
 Node.js (v16+ recommended)
 Python 3.9+
@@ -18,7 +22,7 @@ React.js
 Transformers
 Tesseract OCR (for image text extraction)
 
-Setup
+## Setup
 
 Clone the repository:
 
@@ -47,7 +51,7 @@ npm start
 
 Open your browser and navigate to http://localhost:3000 to use the application.
 
-Deployment
+## Deployment
 This application is configured for deployment on Railway using Docker. The Dockerfile in the root directory handles building both the frontend and backend.
 Simply push your changes to GitHub and connect the repository to Railway for automatic deployment.
 Features
