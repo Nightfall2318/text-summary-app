@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from pypdf import PdfReader
 import docx
@@ -11,8 +11,22 @@ import threading
 import time
 import sys
 
-app = Flask(__name__, static_folder="static", static_url_path="/")
+
+# Initialize Flask app with static file configuration
+app = Flask(__name__, 
+            static_folder='static',  # where static files are located
+            static_url_path='')      # URL path for static files (empty = root)
+
 CORS(app)  # Enable CORS for all routes
+
+# Route to serve the React app - handles all frontend routes
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return app.send_static_file(path)
+    else:
+        return app.send_static_file('index.html')
 
 # Create uploads directory if it doesn't exist
 UPLOAD_FOLDER = 'uploads'
