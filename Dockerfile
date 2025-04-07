@@ -6,21 +6,44 @@ RUN npm install
 RUN npm run build
 
 # Set up Python backend
-FROM python:3.9-slim
-# Copy everything first
+FROM python:3.9
+# Install system dependencies for Tesseract OCR
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    libtesseract-dev \
+    poppler-utils \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy backend code and frontend build
 COPY backend/ /app/backend/
 COPY --from=frontend-build /app/frontend/build /app/static/
 
-# Change working directory to be INSIDE the backend folder
+# Change working directory to backend folder
 WORKDIR /app/backend
 
-# Install Python dependencies directly
-# Replace these with your actual dependencies
-RUN pip install --no-cache-dir flask flask-cors gunicorn python-dotenv
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    flask \
+    flask-cors \
+    pypdf \
+    python-docx \
+    pillow \
+    pytesseract \
+    transformers \
+    torch \
+    python-magic \
+    python-dateutil \
+    chardet \
+    pymupdf \
+    gunicorn
+
+# Create uploads directory
+RUN mkdir -p uploads && chmod 777 uploads
 
 # Set environment variables
 ENV PORT=8000
 ENV STATIC_DIR=/app/static
+ENV PYTHONUNBUFFERED=1
 
 # Expose the port
 EXPOSE 8000
